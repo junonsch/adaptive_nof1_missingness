@@ -43,6 +43,23 @@ class SimpleRegretWithMean(SimpleRegret):
                 best_arms_per_timestep.append(best_arms_per_timestep[-1])
 
         return best_arms_per_timestep
+    
+    def best_arm_per_timestep_missing(self, data: SimulationData):
+        debug_data = data.history_miss.debug_data()
+        best_arms_per_timestep = []
+        prev_value = None
+
+        for d in debug_data:
+            if "mean" in d:
+                prev_value = d["mean"]
+                max_value = numpy.max(prev_value)
+                max_indices = numpy.where(prev_value == max_value)[0]
+                # Randomly select one of these indices
+                best_arms_per_timestep.append(random.choice(max_indices))
+            else:
+                best_arms_per_timestep.append(best_arms_per_timestep[-1])
+
+        return best_arms_per_timestep
 
     def score(self, data: SimulationData) -> List[float]:
         assert (
@@ -57,6 +74,21 @@ class SimpleRegretWithMean(SimpleRegret):
         ]
 
         return best_arm_expectation - numpy.array(expectations_per_timestep)
+    
+    def score_missing(self, data: SimulationData) -> List[float]:
+        assert (
+            "expectations_of_interventions" in data.additional_config
+        ), "Simple Regret can only be calculated if the expectations of interventions are known"
+        expectations_per_arm = data.additional_config["expectations_of_interventions"]
+
+        best_arm_expectation = max(expectations_per_arm)
+
+        expectations_per_timestep = [
+            expectations_per_arm[arm] for arm in self.best_arm_per_timestep_missing(data)
+        ]
+
+ 
+    
 
     def __str__(self) -> str:
         return "Simple Regret With Mean"

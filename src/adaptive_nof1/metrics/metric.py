@@ -22,6 +22,10 @@ class Metric(ABC):
     def score(self, data: SimulationData) -> List[float] | float:
         pass
 
+    @abstractmethod
+    def score_missing(self, data: SimulationData) -> List[float] | float:
+        pass
+
     def score_simulations(self, simulations: List[SimulationData]):
         df_list = [
             pd.DataFrame(
@@ -30,6 +34,30 @@ class Metric(ABC):
                         observation.t for observation in simulation.history.observations
                     ],
                     "score": self.score(simulation),
+                    "simulation": str(simulation),
+                    "patient_id": simulation.patient_id,
+                    "model": str(simulation.model),
+                    "policy": str(simulation.policy),
+                    "pooled": simulation.configuration["pooled"],
+                }
+            )
+            for index, simulation in enumerate(simulations)
+        ]
+
+        return pd.concat(df_list)
+    
+    def score_missing_simulations(self, simulations: List[SimulationData]):
+        df_list = [
+            pd.DataFrame(
+                {
+                    "t": [
+                        observation.t for observation in simulation.history_miss.observations
+                    ],
+                    "t_miss": [
+                        observation.t for observation in simulation.history_miss.observations
+                    ],
+                    "score": self.score_missing(simulation),
+                    "score_miss": self.score_missing(simulation),
                     "simulation": str(simulation),
                     "patient_id": simulation.patient_id,
                     "model": str(simulation.model),
@@ -65,6 +93,21 @@ def plot_score(simulations: list[SimulationData], metrics, minmax_normalization=
 
 
 def score_df(histories: list[History], metrics, minmax_normalization=False):
+    df_list = []
+    scores = {str(metric): metric.score_simulations(histories) for metric in metrics}
+    for metric_name, metric_df in scores.items():
+        metric_df["metric"] = metric_name
+        df_list.append(metric_df)
+    df = pd.concat(df_list)
+    if minmax_normalization:
+        for metric in metrics:
+            df[str(metric)] = minmax_scale(df[str(metric)])
+    return df
+
+
+
+
+def score_missing_df(histories: list[History], metrics, minmax_normalization=False):
     df_list = []
     scores = {str(metric): metric.score_simulations(histories) for metric in metrics}
     for metric_name, metric_df in scores.items():

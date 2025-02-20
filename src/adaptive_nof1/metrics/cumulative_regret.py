@@ -10,6 +10,9 @@ import numpy
 class CumulativeRegret(Metric):
     def score(self, data: SimulationData) -> List[float]:
         return numpy.cumsum(-data.history.to_df()[self.outcome_name])
+    
+    def score_missing(self, data: SimulationData) -> List[float]:
+        return numpy.cumsum(-data.history_miss.to_df()[self.outcome_name])
 
     def __str__(self) -> str:
         return f"Cumulative Regret ({self.outcome_name})"

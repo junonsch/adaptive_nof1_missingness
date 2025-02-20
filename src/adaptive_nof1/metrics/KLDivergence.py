@@ -28,6 +28,18 @@ class KLDivergence(Metric):
         ]
 
         return scores
+    
+    def score_missing(self, data: SimulationData) -> List[float]:
+        debug_data = data.history_miss.debug_data()
+        scores = [
+            torch.distributions.kl_divergence(
+                self.debug_data_to_posterior_distribution(d),
+                self.data_to_true_distribution(data),
+            ).item()
+            for d in debug_data
+        ]
+
+        return scores
 
     def __str__(self) -> str:
         return "KL Divergence"
