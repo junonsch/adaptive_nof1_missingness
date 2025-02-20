@@ -21,3 +21,10 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+.env/
+**/*.pkl
+**/*.csv
+**/*.gif
+**/*.png
+**/*.jpg
+**/*.pdf
