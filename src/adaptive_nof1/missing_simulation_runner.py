@@ -61,7 +61,7 @@ class MissingSimulationRunner:
         complete_action = self.policy.choose_action(self.history, context)
         if self.pooling:
             len_pooled_hist =  [obs for obs in self.pooledHistory.observations if obs.context["patient_id"]== context["patient_id"]]
-            if (len(len_pooled_hist) >0) and any_missings_before:
+            if (len(len_pooled_hist) >0):
                 action = self.policy.choose_action(self.pooledHistory, context)
             else: 
                 action = complete_action
@@ -73,8 +73,11 @@ class MissingSimulationRunner:
 
 
         # for missing track
-        if self.pooling and not any_missings_before:
-            history_miss = self.pooledHistory
+        if not any_missings_before:
+            if self.pooling:
+                history_miss = self.pooledHistory
+            else:
+                history_miss = self.history
         else:
             history_miss = self.history_miss
 

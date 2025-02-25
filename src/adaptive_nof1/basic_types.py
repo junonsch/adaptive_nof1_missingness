@@ -26,6 +26,8 @@ class Observation:
     context: Context
     treatment: Treatment
     outcome: Outcome
+    missing: str
+    imputation_method: str
     t: int
     patient_id: int
     debug_data: dict = field(default_factory=lambda: {})

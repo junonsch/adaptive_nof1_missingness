@@ -57,7 +57,7 @@ class MissingSeriesOfSimulationsRunner:
     def simulate(self, length, percentage_missing, num_patients_missing,missing_mechanism,imputation_method) -> SeriesOfMissingSimulationsData:
         
         patients_missing= np.sort(random.sample(range(len(self.simulations)), num_patients_missing))
-        positions_missing = {p:insert_missings(missing_mechanism) for p in patients_missing}
+        positions_missing = {p:insert_missings(length, percentage_missing, missing_mechanism) for p in patients_missing}
        # positions_missing = random.sample(range(length), round(percentage_missing*length))
         print(f"These patients have missing values: {patients_missing}")
         for i in progressbar(range(length)):
@@ -103,10 +103,10 @@ class MissingSeriesOfSimulationsRunner:
         }
 
 
-def simulate_missing_configurations(configurations, length, percentage_missing, num_patients_missing,imputation_method):
+def simulate_missing_configurations(configurations, length, percentage_missing, num_patients_missing,missing_mechanism,imputation_method):
     calculated_series = []
     for configuration in configurations:
-        result = MissingSeriesOfSimulationsRunner(**configuration).simulate(length, percentage_missing,num_patients_missing,imputation_method)
+        result = MissingSeriesOfSimulationsRunner(**configuration).simulate(length, percentage_missing,num_patients_missing,missing_mechanism,imputation_method)
 
         calculated_series.append(
             {"configuration": result.configuration, "result": result}

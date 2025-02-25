@@ -109,7 +109,7 @@ def score_df(histories: list[History], metrics, minmax_normalization=False):
 
 def score_missing_df(histories: list[History], metrics, minmax_normalization=False):
     df_list = []
-    scores = {str(metric): metric.score_simulations(histories) for metric in metrics}
+    scores = {str(metric): metric.score_missing_simulations(histories) for metric in metrics}
     for metric_name, metric_df in scores.items():
         metric_df["metric"] = metric_name
         df_list.append(metric_df)
