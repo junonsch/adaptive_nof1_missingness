@@ -35,7 +35,9 @@ class Metric(ABC):
                     ],
                     "score": self.score(simulation),
                     "simulation": str(simulation),
-                    "patient_id": simulation.patient_id,
+                    "patient_id": [
+                        observation.patient_id for observation in simulation.history.observations
+                    ],
                     "model": str(simulation.model),
                     "policy": str(simulation.policy),
                     "pooled": simulation.configuration["pooled"],
@@ -59,7 +61,9 @@ class Metric(ABC):
                     "score": self.score_missing(simulation),
                     "score_miss": self.score_missing(simulation),
                     "simulation": str(simulation),
-                    "patient_id": simulation.patient_id,
+                   "patient_id": [
+                        observation.patient_id for observation in simulation.history_miss.observations
+                    ],
                     "model": str(simulation.model),
                     "policy": str(simulation.policy),
                     "pooled": simulation.configuration["pooled"],
