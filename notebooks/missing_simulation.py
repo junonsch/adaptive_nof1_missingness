@@ -1,5 +1,10 @@
 import numpy as np
 import torch
+import sys
+import os
+
+sys.path.append(os.path.abspath("../src"))
+
 from adaptive_nof1 import *
 from adaptive_nof1.policies import *
 from adaptive_nof1.helpers import *
@@ -8,15 +13,24 @@ from adaptive_nof1.metrics import *
 import random
 import pandas as pd
 
-# Initial parameters
+from adaptive_nof1.missing_series_of_simulations_runner import *
+from adaptive_nof1.missing_series_of_simulations_data import *
+from adaptive_nof1.series_of_simulations_data import *
+
+# Initial parameters 
 block_length = 1
 length = 28
 number_of_actions = 2
 number_of_patients = 1000
 percentage_missing = 0.3
 num_patients_missing = 500
-missing_mechanism = "linear"
+missing_mechanism = "exponential"
+effect_parameters = "_10"
+exists = True
+
 random.seed(9001)
+
+
 
 def create_outcome_df(calculated_series, miss=False):
 
@@ -104,9 +118,9 @@ def data_to_true_distribution(data):
     return torch.distributions.MultivariateNormal(torch.tensor(mean), cov)
 
 def create_metrics_df(calculated_series, method, 
-                      metrics=metrics, 
-                      model_mapping=model_mapping,
-                      policy_mapping=policy_mapping):
+                      metrics, 
+                      model_mapping,
+                      policy_mapping):
     df = SeriesOfSimulationsData.score_data(
         [s["result"] for s in calculated_series],
         metrics,
@@ -150,9 +164,28 @@ def return_metric_scores(df_metrics,obs,method):
     return sorted_table
 
 
+#### SETTINGS
+
 generating_scenario_II = lambda patient_id: NormalModel(
     patient_id, mean=[1, 0], variance=[1, 1]
 )
+
+model_mapping = {
+    "NormalModel(([1, 0], [1, 1]))": "II",
+}
+policy_mapping = {
+    "BlockPolicy(ThompsonSampling(NormalKnownVariance(0, 1, 1)))": "TS",
+}
+
+metrics = [
+  #  SimpleRegretWithMean(),
+ #   CumulativeRegret(),
+    KLDivergence(
+        data_to_true_distribution=data_to_true_distribution,
+        debug_data_to_posterior_distribution=debug_data_to_torch_distribution,
+    ),
+]
+
 
 # Inference Model
 inference_model = lambda: NormalKnownVariance(
@@ -183,90 +216,114 @@ configurations_pool = configurations_ind[0]
 configurations_pool["pooling"] = True
 configurations_pool = [configurations_pool]
 
+#### RETURN SIMULATIONS WITH IMPUTATION
+
+if not exists: 
+    print("knn")
+    calculated_series_knn_mean  = simulate_missing_configurations(
+    configurations_pool, length, percentage_missing, num_patients_missing, missing_mechanism,"knn")
+    pd.to_pickle(calculated_series_knn_mean, f"calculated_series_knn_{missing_mechanism}_{effect_parameters}.pkl")
+    
+    print("individual_treatment_mean")
+    calculated_series_individual_tr_mean  = simulate_missing_configurations(
+        configurations_ind, length, percentage_missing, num_patients_missing, missing_mechanism, "individual_treatment_mean"
+    )
+    pd.to_pickle(calculated_series_individual_tr_mean, f"calculated_series_ind_tr_{missing_mechanism}_{effect_parameters}.pkl")
+    
+    print("global_mean")
+    calculated_series_global_mean  = simulate_missing_configurations(
+        configurations_pool, length, percentage_missing, num_patients_missing, missing_mechanism, "global_mean"
+    )
+    pd.to_pickle(calculated_series_global_mean, f"calculated_series_global_{missing_mechanism}_{effect_parameters}.pkl")
+    
+    print("individual_mean")
+    calculated_series_individual_mean  = simulate_missing_configurations(
+    configurations_ind, length, percentage_missing, num_patients_missing, missing_mechanism, "individual_mean")
+    pd.to_pickle(calculated_series_individual_mean, f"calculated_series_ind_{missing_mechanism}_{effect_parameters}.pkl")
+    
+    print("global_treatment_mean")
+    calculated_series_global_tr_mean  = simulate_missing_configurations(
+        configurations_pool, length, percentage_missing, num_patients_missing, missing_mechanism,"global_treatment_mean"
+    )
+    pd.to_pickle(calculated_series_global_tr_mean, f"calculated_series_global_tr_{missing_mechanism}_{effect_parameters}.pkl")
+    
+    print("locf")
+    calculated_series_locf_mean  = simulate_missing_configurations(
+        configurations_ind, length, percentage_missing, num_patients_missing, missing_mechanism, "locf"
+    )
+    pd.to_pickle(calculated_series_locf_mean, f"calculated_series_locf_{missing_mechanism}_{effect_parameters}.pkl")
+
+else:
+
+    calculated_series_individual_mean = pd.read_pickle(f"calculated_series_ind_{missing_mechanism}_{effect_parameters}.pkl")
+    calculated_series_global_mean = pd.read_pickle(f"calculated_series_global_{missing_mechanism}_{effect_parameters}.pkl")
+    
+    calculated_series_individual_tr_mean = pd.read_pickle(f"calculated_series_ind_tr_{missing_mechanism}_{effect_parameters}.pkl")
+    calculated_series_global_tr_mean = pd.read_pickle(f"calculated_series_global_tr_{missing_mechanism}_{effect_parameters}.pkl")
+    
+    calculated_series_knn_mean = pd.read_pickle(f"calculated_series_knn_{missing_mechanism}_{effect_parameters}.pkl")
+    
+    calculated_series_locf_mean = pd.read_pickle(f"calculated_series_locf_{missing_mechanism}_{effect_parameters}.pkl")
 
 
-print("knn")
-calculated_series_knn  = simulate_missing_configurations(
-configurations_pool, length, percentage_missing, num_patients_missing, missing_mechanism,"knn")
-pd.to_pickle(calculated_series_knn, f"calculated_series_knn_{missing_mechanism}.pkl")
+#### RETURN METRICS
 
-print("individual_treatment_mean")
-calculated_series_individual_tr_mean  = simulate_missing_configurations(
-    configurations_ind, length, percentage_missing, num_patients_missing, missing_mechanism, "individual_treatment_mean"
-)
-pd.to_pickle(calculated_series_individual_tr_mean, f"calculated_series_ind_tr_{missing_mechanism}.pkl")
+df_metrics_ind_mean = create_metrics_df(calculated_series_individual_mean, "individual_mean",metrics, model_mapping, policy_mapping)
+pd.to_pickle(df_metrics_ind_mean, f"df_metrics_ind_mean_{missing_mechanism}_{effect_parameters}.pkl")
 
-print("global_mean")
-calculated_series_global_mean  = simulate_missing_configurations(
-    configurations_pool, length, percentage_missing, num_patients_missing, missing_mechanism, "global_mean"
-)
-pd.to_pickle(calculated_series_global_mean, f"calculated_series_global_{missing_mechanism}.pkl")
+df_metrics_glob_mean = create_metrics_df(calculated_series_global_mean, "global_mean",metrics, model_mapping, policy_mapping)
+pd.to_pickle(df_metrics_glob_mean, f"df_metrics_glob_mean_{missing_mechanism}_{effect_parameters}.pkl")
 
-print("individual_mean")
-calculated_series_individual_mean  = simulate_missing_configurations(
-configurations_ind, length, percentage_missing, num_patients_missing, missing_mechanism, "individual_mean")
-pd.to_pickle(calculated_series_individual_mean, f"calculated_series_ind_{missing_mechanism}.pkl")
+df_metrics_ind_tr_mean = create_metrics_df(calculated_series_individual_tr_mean, "individual_tr_mean",
+metrics, model_mapping, policy_mapping)
+pd.to_pickle(df_metrics_ind_tr_mean, f"df_metrics_ind_tr_mean_{missing_mechanism}_{effect_parameters}.pkl")
 
-print("global_treatment_mean")
-calculated_series_global_tr_mean  = simulate_missing_configurations(
-    configurations_pool, length, percentage_missing, num_patients_missing, missing_mechanism,"global_treatment_mean"
-)
-pd.to_pickle(calculated_series_global_tr_mean, f"calculated_series_global_tr_{missing_mechanism}.pkl")
+df_metrics_glob_tr_mean = create_metrics_df(calculated_series_individual_tr_mean, "global_tr_mean",
+metrics, model_mapping, policy_mapping)
+pd.to_pickle(df_metrics_glob_tr_mean, f"df_metrics_glob_tr_mean_{missing_mechanism}_{effect_parameters}.pkl")
 
-print("locf")
-calculated_series_locf  = simulate_missing_configurations(
-    configurations_ind, length, percentage_missing, num_patients_missing, missing_mechanism, "locf"
-)
-pd.to_pickle(calculated_series_locf, f"calculated_series_locf_{missing_mechanism}.pkl")
+df_metrics_knn_mean = create_metrics_df(calculated_series_knn_mean, "knn",metrics, model_mapping, policy_mapping)
+pd.to_pickle(df_metrics_knn_mean, f"df_metrics_knn_mean_{missing_mechanism}_{effect_parameters}.pkl")
+
+df_metrics_locf_mean = create_metrics_df(calculated_series_locf_mean, "locf",metrics, model_mapping, policy_mapping)
+pd.to_pickle(df_metrics_locf_mean, f"df_metrics_locf_mean_{missing_mechanism}_{effect_parameters}.pkl")
 
 
-metrics = [
-  #  SimpleRegretWithMean(),
- #   CumulativeRegret(),
-    KLDivergence(
-        data_to_true_distribution=data_to_true_distribution,
-        debug_data_to_posterior_distribution=debug_data_to_torch_distribution,
-    ),
-]
-model_mapping = {
-    "NormalModel(([1, 0], [1, 1]))": "II",
-}
-policy_mapping = {
-    "BlockPolicy(ThompsonSampling(NormalKnownVariance(0, 1, 1)))": "TS",
-}
 
-
-df_metrics_ind_mean = create_metrics_df(calculated_series_individual_mean, "individual_mean")
-pd.to_pickle(df_metrics_ind_mean, f"df_metrics_ind_mean_{missing_mechanism}.pkl")
-
-df_metrics_glob_mean = create_metrics_df(calculated_series_global_mean, "global_mean")
-pd.to_pickle(df_metrics_glob_mean, f"df_metrics_glob_mean_{missing_mechanism}.pkl")
-
-df_metrics_ind_tr_mean = create_metrics_df(calculated_series_individual_tr_mean, "individual_tr_mean")
-pd.to_pickle(df_metrics_ind_tr_mean, f"df_metrics_ind_tr_mean_{missing_mechanism}.pkl")
-
-df_metrics_glob_tr_mean = create_metrics_df(calculated_series_individual_tr_mean, "global_tr_mean")
-pd.to_pickle(df_metrics_glob_tr_mean, f"df_metrics_glob_tr_mean_{missing_mechanism}.pkl")
-
-df_metrics_knn_mean = create_metrics_df(calculated_series_knn, "knn")
-pd.to_pickle(df_metrics_knn_mean, f"df_metrics_knn_mean_{missing_mechanism}.pkl")
-
-df_metrics_locf_mean = create_metrics_df(calculated_series_locf, "locf")
-pd.to_pickle(df_metrics_ind_mean, f"df_metrics_ind_mean_{missing_mechanism}.pkl")
-
+#### RETURN SCORES FOR FULL OBS
 scores_ind_mean = return_metric_scores(df_metrics_ind_mean,obs="full",method="ind_mean")
-pd.to_pickle(scores_ind_mean, f"scores_ind_mean_{missing_mechanism}.pkl")
+pd.to_pickle(scores_ind_mean, f"scores_ind_mean_{missing_mechanism}_{effect_parameters}.pkl")
+
 scores_glob_mean = return_metric_scores(df_metrics_ind_mean,obs="full",method="glob_mean")
-pd.to_pickle(scores_glob_mean, f"scores_glob_mean_{missing_mechanism}.pkl")
+pd.to_pickle(scores_glob_mean, f"scores_glob_mean_{missing_mechanism}_{effect_parameters}.pkl")
 
 scores_ind_tr_mean = return_metric_scores(df_metrics_ind_tr_mean,obs="full",method="ind_tr_mean")
-pd.to_pickle(scores_ind_tr_mean, f"scores_ind_tr_mean_{missing_mechanism}.pkl")
+pd.to_pickle(scores_ind_tr_mean, f"scores_ind_tr_mean_{missing_mechanism}_{effect_parameters}.pkl")
 
 scores_glob_tr_mean = return_metric_scores(df_metrics_ind_tr_mean,obs="full",method="glob_tr_mean")
-pd.to_pickle(scores_glob_tr_mean, f"scores_glob_tr_mean_{missing_mechanism}.pkl")
+pd.to_pickle(scores_glob_tr_mean, f"scores_glob_tr_mean_{missing_mechanism}_{effect_parameters}.pkl")
 
 scores_knn_mean = return_metric_scores(df_metrics_knn_mean,obs="full",method="knn")
-pd.to_pickle(scores_knn_mean, f"scores_locf_mean_{missing_mechanism}.pkl")
+pd.to_pickle(scores_knn_mean, f"scores_knn_mean_{missing_mechanism}_{effect_parameters}.pkl")
 
 scores_locf_mean = return_metric_scores(df_metrics_locf_mean,obs="full",method="locf")
-pd.to_pickle(scores_locf_mean, f"scores_locf_mean_{missing_mechanism}.pkl")
+pd.to_pickle(scores_locf_mean, f"scores_locf_mean_{missing_mechanism}_{effect_parameters}.pkl")
+
+#### RETURN SCORES FOR MISS OBS
+scores_ind_mean_miss = return_metric_scores(df_metrics_ind_mean,obs="miss",method="ind_mean_miss")
+pd.to_pickle(scores_ind_mean_miss, f"scores_ind_mean_miss_{missing_mechanism}_{effect_parameters}.pkl")
+
+scores_glob_mean_miss = return_metric_scores(df_metrics_ind_mean,obs="miss",method="glob_mean_miss")
+pd.to_pickle(scores_glob_mean_miss, f"scores_glob_mean_miss_{missing_mechanism}_{effect_parameters}.pkl")
+
+scores_ind_tr_mean_miss = return_metric_scores(df_metrics_ind_tr_mean,obs="miss", method="ind_tr_mean_miss")
+pd.to_pickle(scores_ind_tr_mean_miss, f"scores_ind_tr_mean_miss_{missing_mechanism}_{effect_parameters}.pkl")
+
+scores_glob_tr_mean_miss = return_metric_scores(df_metrics_ind_tr_mean,obs="miss", method="glob_tr_mean_miss")
+pd.to_pickle(scores_glob_tr_mean_miss, f"scores_glob_tr_mean_miss_{missing_mechanism}_{effect_parameters}.pkl")
+
+scores_knn_mean_miss = return_metric_scores(df_metrics_knn_mean,obs="miss",method="knn_miss")
+pd.to_pickle(scores_knn_mean_miss, f"scores_knn_mean_miss_{missing_mechanism}_{effect_parameters}.pkl")
+
+scores_locf_mean_miss = return_metric_scores(df_metrics_locf_mean,obs="miss",method="locf_miss")
+pd.to_pickle(scores_locf_mean_miss, f"scores_locf_mean_miss_{missing_mechanism}_{effect_parameters}.pkl")
