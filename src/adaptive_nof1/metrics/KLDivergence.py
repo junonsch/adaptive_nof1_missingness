@@ -4,6 +4,8 @@ from typing import List
 
 from adaptive_nof1.metrics.metric import Metric
 from adaptive_nof1.simulation_data import SimulationData
+from adaptive_nof1.missing_simulation_data import MissingSimulationData
+
 from adaptive_nof1.helpers import flatten_dictionary
 
 import torch
@@ -29,7 +31,7 @@ class KLDivergence(Metric):
 
         return scores
     
-    def score_missing(self, data: SimulationData) -> List[float]:
+    def score_missing(self, data: MissingSimulationData) -> List[float]:
         debug_data = data.history_miss.debug_data()
         scores = [
             torch.distributions.kl_divergence(
