@@ -33,7 +33,7 @@ exists = True
 random.seed(9001)
 
 treatment_means = [1,0]
-effect_parameters_file_ending = f"_{treatment_means[0]}{treatment_means[1]}"
+effect_parameters_file_ending = f"{treatment_means[0]}{treatment_means[1]}"
 
 #### SETTINGS
 
@@ -93,8 +93,14 @@ for imputation_method in imputation_method_names:
     #### RETURN SIMULATIONS WITH IMPUTATION
     if not exists: 
         print(imputation_method)
+
+        if imputation_method in ["individual", "ind_tr", "locf"]:
+            configurations = configurations_ind
+        else:
+            configurations = configurations_pool
+            
         calculated_series  = simulate_missing_configurations(
-        configurations_pool, length, percentage_missing, num_patients_missing, missing_mechanism,imputation_method)
+        configurations, length, percentage_missing, num_patients_missing, missing_mechanism,imputation_method)
         pd.to_pickle(calculated_series, f"calculated_series_{imputation_method}_{missing_mechanism}_{effect_parameters_file_ending}.pkl")
         
     

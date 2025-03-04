@@ -1,6 +1,8 @@
 from adaptive_nof1.basic_types import History
 import numpy as np
 import pandas as pd
+from sklearn.cluster import KMeans
+from scipy.spatial.distance import euclidean
 
 class Imputation:
 
@@ -20,23 +22,28 @@ class Imputation:
         if imputation_method == "locf":
             outcome_miss = {"outcome": self.locf(),
                             "imputation_method":imputation_method}
-        elif imputation_method == "individual_mean":
+        elif imputation_method == "individual":
             outcome_miss = {"outcome": self.individual_mean_imputation(),
                             "imputation_method":imputation_method}
-        elif imputation_method == "individual_treatment_mean":
+        elif imputation_method == "ind_tr":
             outcome_miss = {"outcome": self.individual_treatment_mean_imputation(),
                             "imputation_method":imputation_method}
-        elif imputation_method == "global_mean":
+        elif imputation_method == "global":
             outcome_miss = {"outcome": self.global_mean_imputation(),
                             "imputation_method":imputation_method}
-        elif imputation_method == "global_treatment_mean":
+        elif imputation_method == "global_tr":
             outcome_miss = {"outcome": self.global_treatment_mean_imputation(),
                             "imputation_method":imputation_method}
         elif imputation_method == "knn":
             outcome_miss = {"outcome": self.knn_imputation(),
                             "imputation_method":imputation_method}
         elif imputation_method == "cluster":
+            print("IMPUTING CLUSTER")
             outcome_miss = {"outcome": self.cluster_imputation(),
+                            "imputation_method":imputation_method}
+        elif imputation_method == "dr":
+            print("IMPUTING DR")
+            outcome_miss = {"outcome": self.DR_imputation(),
                             "imputation_method":imputation_method}
         elif imputation_method == "all":
             print("Not implemented yet.")
@@ -53,8 +60,7 @@ class Imputation:
         else:
             observations = [obs for obs in self.history.observations if obs.patient_id == self.model.patient_id]
             fill_value = observations[-1].outcome["outcome"]
-            print(f"chosen value for locf is: {fill_value}")
-            print(observations[-1])
+           
         return fill_value
 
     def individual_mean_imputation(self):
@@ -85,6 +91,103 @@ class Imputation:
 
     def global_treatment_mean_imputation(self):
         return self.individual_treatment_mean_imputation()
+
+    def prep_vectors_and_comp_vec(self):
+        comp_vec = {}
+        comp_vec[self.context["patient_id"]] = [(obs.context['t'], obs.treatment['treatment'], obs.outcome['outcome']) for obs in self.history.observations if obs.context["patient_id"] == self.context["patient_id"] and obs.context["t"] != self.context["t"] ]
+        vectors = {}
+        patient_ids = [obs.context["patient_id"] for obs in self.history.observations]
+        for patient_id in pd.Series(patient_ids).unique():
+            vectors[patient_id] = [(obs.context['t'], obs.treatment['treatment'], obs.outcome['outcome']) for obs in self.history.observations if not obs.missing and obs.context["patient_id"] != self.context["patient_id"] and obs.context["patient_id"] == patient_id and obs.context["t"] != self.context["t"] ]
+
+        return vectors, comp_vec
+
+    def fit_estimate_beta(self, X, targets, lamb): ## lamb is the regulization parameter
+        
+        X_b = np.c_[np.ones((X.shape[0], 1)), X]
+        lambI = np.eye(X_b.shape[1]) * lamb
+    
+        beta_DR = np.linalg.inv(X_b.T.dot(X_b) + lambI ).dot(X_b.T).dot(targets)
+        
+        return beta_DR
+    
+    def predict(self, beta_DR, X):
+        """
+        Predict target values for given input features X.
+        X: numpy array of shape (n_samples, n_features)
+        """
+        return beta_DR[0] + X.dot(beta_DR[1:])
+
+
+
+    def DR_imputation(self): 
+
+        ts = self.context['t']
+        if ts == 0:
+            fill_value = self.model.mean[self.action['treatment']]
+        else:
+            vectors, comp_vec = self.prep_vectors_and_comp_vec()
+    
+            X = []
+            targets = []  # Store target values (third element)
+            keys = []
+            
+            for key, value in vectors.items():
+                if value:  # Ignore empty lists
+                    feature_vector = value[0][:2]  
+                    target_value = value[0][2]  
+                    X.append(feature_vector)
+                    targets.append(target_value)
+                    keys.append(key)
+            
+            X = np.array(X)
+            targets = np.array(targets)
+        
+            beta_DR = self.fit_estimate_beta(X, targets,lamb=1)
+    
+            comparator_vector = np.array(list(comp_vec.values())[0][0][:2])
+            
+            fill_value = self.predict(beta_DR, comparator_vector)
+        return fill_value
+
+    def cluster_imputation(self):
+        ts = self.context['t']
+        if ts == 0:
+            fill_value = self.model.mean[self.action['treatment']]
+        else:
+            vectors, comp_vec = self.prep_vectors_and_comp_vec()
+
+            X = []
+            targets = []  # Store target values (third element)
+            keys = []
+            
+            for key, value in vectors.items():
+                if value:  # Ignore empty lists
+                    feature_vector = value[0][:2]  
+                    target_value = value[0][2]  
+                    X.append(feature_vector)
+                    targets.append(target_value)
+                    keys.append(key)
+            
+            X = np.array(X)
+            targets = np.array(targets)
+            
+            n_clusters = min(len(X), 3)  # Choose number of clusters
+            kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+            labels = kmeans.fit_predict(X)
+            
+            cluster_means = {}
+            for cluster in range(n_clusters):
+                cluster_means[cluster] = np.mean(targets[labels == cluster])
+            
+            comparator_vector = np.array(list(comp_vec.values())[0][0][:2])  
+            closest_cluster = min(range(n_clusters), key=lambda c: euclidean(comparator_vector, kmeans.cluster_centers_[c]))
+            
+            fill_value = cluster_means[closest_cluster]
+            
+            return fill_value
+
+
 
     def knn_imputation(self,k=3):
         ts = self.context['t']
@@ -131,11 +234,5 @@ class Imputation:
                 pass
         return fill_value
 
-    def cluster_imputation(self):
-        ts = self.context['t']
-        if ts == 0:
-            fill_value = self.model.mean[self.action['treatment']]
-        else:
-            pass
 
 
