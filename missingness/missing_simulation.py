@@ -116,7 +116,7 @@ for imputation_method in imputation_method_names:
 
     #### RETURN SCORES FOR FULL OBS
     scores = return_metric_scores(df_metrics,obs="full",method=imputation_method)
-    pd.to_pickle(scores_ind_mean, f"scores_{imputation_method}_{missing_mechanism}_{effect_parameters_file_ending}.pkl")
+    pd.to_pickle(scores, f"scores_{imputation_method}_{missing_mechanism}_{effect_parameters_file_ending}.pkl")
 
     #### RETURN SCORES FOR MISS OBS
     scores_miss = return_metric_scores(df_metrics,obs="miss",method=f"{imputation_method}_miss")
