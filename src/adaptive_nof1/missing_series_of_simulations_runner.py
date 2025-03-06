@@ -55,17 +55,18 @@ class MissingSeriesOfSimulationsRunner:
         self.pooling = pooling
 
     def simulate(self, length, percentage_missing, num_patients_missing,missing_mechanism,imputation_method) -> SeriesOfMissingSimulationsData:
-        
+        random.seed(9001)
         patients_missing= np.sort(random.sample(range(len(self.simulations)), num_patients_missing))
-        positions_missing = {p:insert_missings(length, percentage_missing, missing_mechanism) for p in patients_missing}
-       # positions_missing = random.sample(range(length), round(percentage_missing*length))
-        print(f"These patients have missing values: {patients_missing}")
+        positions_missing = {p:insert_missings(length, percentage_missing, missing_mechanism, p) for p in patients_missing}
+        #print(f"These patients have missing values: {patients_missing}")
         for i in progressbar(range(length)):
-            print(f"AT TIME POINT {i}")
+            #print(f"AT TIME POINT {i}")
             for num_sim, simulation in enumerate(self.simulations): # n_patients
                 model = self.model_from_patient_id(num_sim)
                 if num_sim in patients_missing:
                     missings = positions_missing[num_sim]
+                    if 0 in missings:
+                        print("THERE ARE ZEROS IN MISSINGS")
                 else: 
                     missings = []
                 simulation.pooling = self.pooling

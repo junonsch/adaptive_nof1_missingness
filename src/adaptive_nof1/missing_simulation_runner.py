@@ -9,7 +9,7 @@ from adaptive_nof1.policies.policy import Policy
 from adaptive_nof1.missing_simulation_data import MissingSimulationData
 #from adaptive_nof1.imputation.mean import individual_mean_imputation
 from adaptive_nof1.imputation.imputation import Imputation
-
+import random
 
 @dataclass
 class MissingSimulationRunner:
@@ -44,19 +44,20 @@ class MissingSimulationRunner:
         if self.policy.is_stopped:
             return self
 
+        random.seed(9001)
 
         # for complete track:
         context = model.generate_context(self.history)
         context["t"] = length
-        if len(missings) > 0:
-            print(f"missing values are here: {missings}")
+        #if len(missings) > 0:
+        #    print(f"missing values are here: {missings}")
         if context["t"] in missings:
             missing = True
         else:
             missing = False
         any_missings_before = any([miss < context["t"] for miss in missings])
         context["patient_id"] = model.patient_id
-        print(f"PATIENT ID IS {context['patient_id']}")
+       # print(f"PATIENT ID IS {context['patient_id']}")
 
         complete_action = self.policy.choose_action(self.history, context)
         if self.pooling:
@@ -89,7 +90,6 @@ class MissingSimulationRunner:
         
        # action_miss = self.policy.choose_action(history_miss, context)
 
-        
         imputer_miss = Imputation(history_miss, context, action_miss, model)
         if missing:
             #outcome_miss = {"outcome": individual_mean_imputation(history_miss, context, action_miss, model)}
