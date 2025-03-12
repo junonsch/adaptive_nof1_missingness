@@ -83,7 +83,7 @@ study_designs = {
     
 }
 configurations_ind = generate_configuration_cross_product(study_designs)
-configurations_pool = configurations_ind[0]
+configurations_pool = configurations_ind[0].copy()
 configurations_pool["pooling"] = True
 configurations_pool = [configurations_pool]
 

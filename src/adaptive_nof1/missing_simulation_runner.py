@@ -55,19 +55,16 @@ class MissingSimulationRunner:
         any_missings_before = any([miss < context["t"] for miss in missings])
         context["patient_id"] = model.patient_id
 
-       # print(f"Missing here: {missing}")
-
-        hist = History([obs for obs in self.history.observations if obs.context["patient_id"]== context["patient_id"]])
-        complete_action = self.policy.choose_action(self.history, context)
+        
         if self.pooling:
             pooled_hist =  History([obs for obs in self.pooledHistory.observations if obs.context["patient_id"]== context["patient_id"]])
             if (len(pooled_hist) >0):
                 action = self.policy.choose_action(self.pooledHistory, context)
             else: 
-                action = complete_action
+                action = self.policy.choose_action(self.history, context)
         else:
-            action = complete_action
-        #print(f"Action is {action}")
+            hist = History([obs for obs in self.history.observations if obs.context["patient_id"]== context["patient_id"]])
+            action = self.policy.choose_action(hist, context)
         outcome = self.model.observe_outcome(action, context)  
 
 
@@ -78,19 +75,16 @@ class MissingSimulationRunner:
             else:
                 history_miss = self.history
         else:
-            history_miss = self.history_miss
+            history_miss = History([obs for obs in self.history_miss.observations if obs.context["patient_id"]== context["patient_id"]])
             
 
         if missing:
             action_miss = self.policy.choose_action(history_miss, context)
         else: 
-            action_miss = complete_action
-       # print(f"Action miss is {action_miss}")
-       # action_miss = self.policy.choose_action(history_miss, context)
+            action_miss = action
 
         imputer_miss = Imputation(history_miss, context, action_miss, model)
         if missing:
-            #outcome_miss = {"outcome": individual_mean_imputation(history_miss, context, action_miss, model)}
             outcome_miss = imputer_miss.impute(imputation_method)
             outcome_miss["imputation_method"] = imputation_method
         else:
