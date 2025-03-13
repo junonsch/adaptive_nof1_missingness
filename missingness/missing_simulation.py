@@ -26,10 +26,10 @@ number_of_actions = 2
 number_of_patients = 1000
 percentage_missing = 0.3
 num_patients_missing = 500
-missing_mechanism = "exponential"
-imputation_method_names = ["knn", "ind_tr", "global", "individual", "global_tr", "locf"]
-exists = True
-
+missing_mechanism = "random"
+imputation_method_names = ["individual", "global"]#, "locf", "ind_tr",  "global_tr", "knn", "cluster", "dr"] # 
+exists = False
+results_path = "./results"
 random.seed(9001)
 
 treatment_means = [1,0]
@@ -82,42 +82,21 @@ study_designs = {
     "pooling": [False]
     
 }
-configurations_ind = generate_configuration_cross_product(study_designs)
-configurations_pool = configurations_ind[0].copy()
-configurations_pool["pooling"] = True
-configurations_pool = [configurations_pool]
-
+configurations = generate_configuration_cross_product(study_designs)
 
 for imputation_method in imputation_method_names: 
 
     #### RETURN SIMULATIONS WITH IMPUTATION
     if not exists: 
         print(imputation_method)
-
-        if imputation_method in ["individual", "ind_tr", "locf"]:
-            configurations = configurations_ind
-        else:
-            configurations = configurations_pool
-            
         calculated_series  = simulate_missing_configurations(
         configurations, length, percentage_missing, num_patients_missing, missing_mechanism,imputation_method)
-        pd.to_pickle(calculated_series, f"calculated_series_{imputation_method}_{missing_mechanism}_{effect_parameters_file_ending}.pkl")
-        
-    
+        pd.to_pickle(calculated_series, f"{results_path}/calculated_series_{imputation_method}_{missing_mechanism}_{effect_parameters_file_ending}.pkl")
     else:
-    
-        calculated_series = pd.read_pickle(f"calculated_series_{imputation_method}_{missing_mechanism}_{effect_parameters_file_ending}.pkl")
+        calculated_series = pd.read_pickle(f"{results_path}/calculated_series_{imputation_method}_{missing_mechanism}_{effect_parameters_file_ending}.pkl")
         
 
-    #### RETURN METRICS
-    df_metrics = create_metrics_df(calculated_series, imputation_method,metrics, model_mapping, policy_mapping)
-    pd.to_pickle(df_metrics, f"df_metrics_{imputation_method}_{missing_mechanism}_{effect_parameters_file_ending}.pkl")
-
-
-    #### RETURN SCORES FOR FULL OBS
-    scores = return_metric_scores(df_metrics,obs="full",method=imputation_method)
-    pd.to_pickle(scores, f"scores_{imputation_method}_{missing_mechanism}_{effect_parameters_file_ending}.pkl")
-
-    #### RETURN SCORES FOR MISS OBS
-    scores_miss = return_metric_scores(df_metrics,obs="miss",method=f"{imputation_method}_miss")
-    pd.to_pickle(scores_miss, f"scores_{imputation_method}_miss_{missing_mechanism}_{effect_parameters_file_ending}.pkl")
+    df_result = create_df_result(calculated_series)
+    df_result["method"] = imputation_method
+    pd.to_pickle(df_result, f"{results_path}/df_result_{imputation_method}_{missing_mechanism}_{effect_parameters_file_ending}.pkl")
+    
