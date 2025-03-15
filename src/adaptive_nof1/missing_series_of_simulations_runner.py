@@ -21,7 +21,7 @@ import seaborn as sns
 import panel
 import hvplot.pandas  # noqa
 import matplotlib.pyplot as plt
-
+import copy
 
 @dataclass
 class MissingSeriesOfSimulationsRunner:
@@ -32,22 +32,30 @@ class MissingSeriesOfSimulationsRunner:
         self,
         model_from_patient_id: Callable[[int], Model],
         n_patients: int,
-        policy,
+        policy_full,
+        policy_miss,
         pooling=False,
+
     ):
+        np.random.seed(9001)  # Reset before creating policies
+        
+        # Ensure both policies are initialized from the same random state
+        policy_full_copy = copy.deepcopy(policy_full)
+        policy_miss_copy = copy.deepcopy(policy_miss)
         self.simulations = [
             MissingSimulationRunner.from_model_and_policy_with_copy(
                 model_from_patient_id(index),
-                policy,
-                pooling
+                policy_full_copy,
+                policy_miss_copy, 
+                pooling,
             )
             for index in range(n_patients)
         ]
         assert all_equal(
-            [str(s.policy) for s in self.simulations]
+            [str(s.policy_full) for s in self.simulations]
         ), "Not all policies are the same. Usually, you need to set __str__() somewhere"
         assert all_equal(
-            [str(s.model) for s in self.simulations]
+            [str(s.model_full) for s in self.simulations]
         ), "Not all models are the same. Usually, you need to set __str__() somewhere"
 
         self.n_patients = n_patients
@@ -56,7 +64,7 @@ class MissingSeriesOfSimulationsRunner:
 
     def simulate(self, length, percentage_missing, num_patients_missing,missing_mechanism,imputation_method) -> SeriesOfMissingSimulationsData:
         random.seed(9001)
-        np.random.seed(9001)
+      #  np.random.seed(9001)
         if imputation_method in ["individual", "ind_tr", "locf"]:
             self.pooling = False
         else:
@@ -77,9 +85,8 @@ class MissingSeriesOfSimulationsRunner:
                     histories = [simulation.history_miss for simulation in self.simulations]
                     pooled_history = History.fromListOfHistories(histories)
                     simulation.pooledHistory = pooled_history
-                    simulation.step(missings,model,imputation_method,i)
-                else:
-                    simulation.step(missings,model,imputation_method,i)
+                simulation.step(missings,model,imputation_method,i)
+                
 
         return SeriesOfMissingSimulationsData(
             simulations=[simulation.get_data() for simulation in self.simulations],
@@ -97,14 +104,16 @@ class MissingSeriesOfSimulationsRunner:
     @property
     def configuration(self):
         return {
-            "policy": str(self.simulations[0].policy),
-            "model": str(self.simulations[0].model),
+            "policy_full": self.simulations[0].policy_full.internal_policy.inference.posterior_parameters(2),#str(self.simulations[0].policy_full),
+            "policy_miss": self.simulations[0].policy_miss.internal_policy.inference.posterior_parameters(2),#str(self.simulations[0].policy_miss),
+            "model_full": str(self.simulations[0].model_full),
             "pooling": self.pooling,
         }
 
 
 def simulate_missing_configurations(configurations, length, percentage_missing, num_patients_missing,missing_mechanism,imputation_method):
     calculated_series = []
+    np.random.seed(9001)  
     for configuration in configurations:
         result = MissingSeriesOfSimulationsRunner(**configuration).simulate(length, percentage_missing,num_patients_missing,missing_mechanism,imputation_method)
 
@@ -112,9 +121,4 @@ def simulate_missing_configurations(configurations, length, percentage_missing, 
             {"configuration": result.configuration, "result": result}
         )
 
-    # config_to_simulation_data = {
-    #     str(simulation.configuration): simulation
-    #     for d in calculated_series
-    #     for simulation in d["result"].simulations
-    # }
-    return calculated_series#, config_to_simulation_data
+    return calculated_series

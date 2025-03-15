@@ -27,6 +27,7 @@ class Observation:
     treatment: Treatment
     outcome: Outcome
     missing: str
+    posterior_params: tuple
     imputation_method: str
     t: int
     patient_id: int

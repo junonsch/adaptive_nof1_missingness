@@ -3,48 +3,42 @@ import numpy as np
 import pandas as pd
 from sklearn.cluster import KMeans
 from scipy.spatial.distance import euclidean
+import random
 
 class Imputation:
 
     def __init__(
         self,
         history: History,
+        pooled_history: History,
         context: int,
         action,
         model,
     ):
         self.history = history 
+        self.pooled_history = pooled_history 
         self.context = context
         self.action = action 
         self.model = model
 
     def impute(self, imputation_method):
+        random.seed(9001)
         if imputation_method == "locf":
-            outcome_miss = {"outcome": self.locf(),
-                            "imputation_method":imputation_method}
+            outcome_miss = {"outcome": self.locf()}
         elif imputation_method == "individual":
-            outcome_miss = {"outcome": self.individual_mean_imputation(),
-                            "imputation_method":imputation_method}
+            outcome_miss = {"outcome": self.individual_mean_imputation()}
         elif imputation_method == "ind_tr":
-            outcome_miss = {"outcome": self.individual_treatment_mean_imputation(),
-                            "imputation_method":imputation_method}
+            outcome_miss = {"outcome": self.individual_treatment_mean_imputation()}
         elif imputation_method == "global":
-            outcome_miss = {"outcome": self.global_mean_imputation(),
-                            "imputation_method":imputation_method}
+            outcome_miss = {"outcome": self.global_mean_imputation()}
         elif imputation_method == "global_tr":
-            outcome_miss = {"outcome": self.global_treatment_mean_imputation(),
-                            "imputation_method":imputation_method}
+            outcome_miss = {"outcome": self.global_treatment_mean_imputation()}
         elif imputation_method == "knn":
-            outcome_miss = {"outcome": self.knn_imputation(),
-                            "imputation_method":imputation_method}
+            outcome_miss = {"outcome": self.knn_imputation()}
         elif imputation_method == "cluster":
-            print("IMPUTING CLUSTER")
-            outcome_miss = {"outcome": self.cluster_imputation(),
-                            "imputation_method":imputation_method}
+            outcome_miss = {"outcome": self.cluster_imputation()}
         elif imputation_method == "dr":
-            print("IMPUTING DR")
-            outcome_miss = {"outcome": self.DR_imputation(),
-                            "imputation_method":imputation_method}
+            outcome_miss = {"outcome": self.DR_imputation()}
         elif imputation_method == "all":
             print("Not implemented yet.")
             pass
@@ -69,7 +63,7 @@ class Imputation:
         if ts == 0:
             fill_value = self.model.mean[self.action['treatment']]
         else:
-            outcomes = [obs.outcome['outcome'] for obs in self.history.observations]
+            outcomes = [obs.outcome['outcome'] for obs in self.history.observations if obs.patient_id == self.model.patient_id]
             fill_value = np.array(outcomes).mean()
         
         return fill_value
@@ -80,25 +74,40 @@ class Imputation:
         if ts == 0:
             fill_value = self.model.mean[self.action['treatment']]
         else:
-            outcomes = [obs.outcome['outcome'] for obs in self.history.observations if obs.treatment['treatment'] == self.action['treatment']]
+            outcomes = [obs.outcome['outcome'] for obs in self.history.observations if obs.treatment['treatment'] == self.action['treatment'] and obs.patient_id == self.model.patient_id]
             fill_value = np.array(outcomes).mean()
         
         return fill_value
     
     def global_mean_imputation(self):
-        return self.individual_mean_imputation()
+        ts = self.context['t']
+       
+        if ts == 0:
+            fill_value = self.model.mean[self.action['treatment']]
+        else:
+            outcomes = [obs.outcome['outcome'] for obs in self.pooled_history.observations]
+            fill_value = np.array(outcomes).mean()
+        
+        return fill_value
 
 
     def global_treatment_mean_imputation(self):
-        return self.individual_treatment_mean_imputation()
+        ts = self.context['t']
+        if ts == 0:
+            fill_value = self.model.mean[self.action['treatment']]
+        else:
+            outcomes = [obs.outcome['outcome'] for obs in self.pooled_history.observations if obs.treatment['treatment'] == self.action['treatment']]
+            fill_value = np.array(outcomes).mean()
+        
+        return fill_value
 
     def prep_vectors_and_comp_vec(self):
         comp_vec = {}
-        comp_vec[self.context["patient_id"]] = [(obs.context['t'], obs.treatment['treatment'], obs.outcome['outcome']) for obs in self.history.observations if obs.context["patient_id"] == self.context["patient_id"] and obs.context["t"] != self.context["t"] ]
+        comp_vec[self.context["patient_id"]] = [(obs.context['t'], obs.treatment['treatment'], obs.outcome['outcome']) for obs in self.pooled_history.observations if obs.context["patient_id"] == self.context["patient_id"] and obs.context["t"] != self.context["t"] ]
         vectors = {}
-        patient_ids = [obs.context["patient_id"] for obs in self.history.observations]
+        patient_ids = [obs.context["patient_id"] for obs in self.pooled_history.observations]
         for patient_id in pd.Series(patient_ids).unique():
-            vectors[patient_id] = [(obs.context['t'], obs.treatment['treatment'], obs.outcome['outcome']) for obs in self.history.observations if not obs.missing and obs.context["patient_id"] != self.context["patient_id"] and obs.context["patient_id"] == patient_id and obs.context["t"] != self.context["t"] ]
+            vectors[patient_id] = [(obs.context['t'], obs.treatment['treatment'], obs.outcome['outcome']) for obs in self.pooled_history.observations if not obs.missing and obs.context["patient_id"] != self.context["patient_id"] and obs.context["patient_id"] == patient_id and obs.context["t"] != self.context["t"] ]
 
         return vectors, comp_vec
 
@@ -196,10 +205,10 @@ class Imputation:
         else:
             vectors = {}
             comp_vec = {}
-            comp_vec[self.context["patient_id"]] = [(obs.context['t'], obs.treatment['treatment'], obs.outcome['outcome']) for obs in self.history.observations if obs.context["patient_id"] == self.context["patient_id"] and obs.context["t"] != self.context["t"] ]
-            patient_ids = [obs.context["patient_id"] for obs in self.history.observations]
+            comp_vec[self.context["patient_id"]] = [(obs.context['t'], obs.treatment['treatment'], obs.outcome['outcome']) for obs in self.pooled_history.observations if obs.context["patient_id"] == self.context["patient_id"] and obs.context["t"] != self.context["t"] ]
+            patient_ids = [obs.context["patient_id"] for obs in self.pooled_history.observations]
             for patient_id in pd.Series(patient_ids).unique():
-                vectors[patient_id] = [(obs.context['t'], obs.treatment['treatment'], obs.outcome['outcome']) for obs in self.history.observations if not obs.missing and obs.context["patient_id"] != self.context["patient_id"] and obs.context["patient_id"] == patient_id and obs.context["t"] != self.context["t"] ]
+                vectors[patient_id] = [(obs.context['t'], obs.treatment['treatment'], obs.outcome['outcome']) for obs in self.pooled_history.observations if not obs.missing and obs.context["patient_id"] != self.context["patient_id"] and obs.context["patient_id"] == patient_id and obs.context["t"] != self.context["t"] ]
             # Function to extract the third element from each tuple and return as a NumPy array
             def extract_vector(data):
                 return np.array([tup[2] for tup in data if len(tup) > 2])

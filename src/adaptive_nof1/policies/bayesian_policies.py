@@ -49,8 +49,10 @@ class ThompsonSampling(Policy):
         self,
         inference_model,
         posterior_update_interval=1,
+        seed = 9001,
         **kwargs,
     ):
+        self.rng = numpy.random.default_rng(seed)        #self.reset_rng()
         self.inference = inference_model
         self.posterior_update_interval = posterior_update_interval
         self._debug_data = []
@@ -59,30 +61,33 @@ class ThompsonSampling(Policy):
     @property
     def additional_config(self):
         return {"inference": f"{self.inference}"}
-
+    
     def __str__(self):
         return f"ThompsonSampling({self.inference})"
 
     def choose_action(self, history, context):
+        if len(history) == 0:
+            self._debug_information += ["len(History) == 0"]
+            self._debug_data.append({})
+            return {self.treatment_name: self.rng.integers(self.number_of_actions)}
+
         if (
             len(history) % self.posterior_update_interval == 0
             or self.inference.trace is None
         ):
             self.inference.update_posterior(history, self.number_of_actions)
+        else:
+            print("not updating posterior")
 
-        probability_array = self.inference.approximate_max_probabilities(
-            self.number_of_actions, context
-        )
-        action = random.choices(
-            range(self.number_of_actions), weights=probability_array
-        )[0]
+        probability_array = self.inference.approximate_max_probabilities(self.number_of_actions, context)
+        
+        # Use RNG instead of `random.choices()`
+        action = self.rng.choice(range(self.number_of_actions), p=probability_array)
+
         self._debug_information += [
-            f"Probabilities for picking: {numpy.array_str(numpy.array(probability_array), precision=2, suppress_small=True)}, chose {action}"
+            f"Probabilities for picking: {numpy.array_str(probability_array, precision=2, suppress_small=True)}, chose {action}"
         ]
-        debug_data_from_model = self.inference.debug_data
-        self._debug_data.append(
-            {**{"probabilities": probability_array}, **debug_data_from_model}
-        )
+        self._debug_data.append({"probabilities": probability_array})
         return {self.treatment_name: action}
 
     @property
@@ -107,6 +112,7 @@ class ClippedThompsonSampling(ThompsonSampling):
             or self.inference.trace is None
         ):
             self.inference.update_posterior(history, self.number_of_actions)
+        
         probability_array = numpy.clip(
             self.inference.approximate_max_probabilities(
                 self.number_of_actions, context
@@ -114,6 +120,7 @@ class ClippedThompsonSampling(ThompsonSampling):
             0.2,
             0.8,
         )
+
         action = random.choices(
             range(self.number_of_actions), weights=probability_array
         )[0]

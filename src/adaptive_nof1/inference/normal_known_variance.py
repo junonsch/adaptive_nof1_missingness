@@ -22,7 +22,7 @@ class NormalKnownVariance:
         assert variance > 0, "Variance must be positive"
         self.treatment_name = treatment_name
         self.outcome_name = outcome_name
-        self.rng = numpy.random.default_rng(seed)
+       # self.rng = numpy.random.default_rng(seed)
         self.prior_mean = prior_mean
         self.prior_variance = prior_variance
         self.variance = variance

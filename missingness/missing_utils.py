@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import sys
 import os
-
+import numpy
 sys.path.append(os.path.abspath("../src"))
 
 from adaptive_nof1 import *
@@ -34,6 +34,7 @@ def create_outcome_df(calculated_series, miss=False):
                 "t": obs.t,
                 "treatment": obs.treatment["treatment"],
                 "missing": obs.missing,
+                "posterior_parameters": obs.posterior_params,
                 "outcome": obs.outcome["outcome"],
               #  "outcome_miss": obs.outcome_miss["outcome_miss"]
             }
@@ -59,7 +60,7 @@ def create_df_result(calculated_series):
 # Scenarios
 class NormalModel(Model):
     def __init__(self, patient_id, mean, variance):
-        self.rng = numpy.random.default_rng(patient_id)
+        self.rng = numpy.random.default_rng(9001 + patient_id)
         self.mean = mean
         self.variance = variance
         self.patient_id = patient_id
@@ -81,11 +82,12 @@ class NormalModel(Model):
 
     def observe_outcome(self, action, context):
         treatment_index = action["treatment"]
-        return {
-            "outcome": self.rng.normal(
-                self.mean[treatment_index], numpy.sqrt(self.variance[treatment_index])
-            )
-        }        
+
+        outcome = self.rng.normal(
+            self.mean[treatment_index], np.sqrt(self.variance[treatment_index])
+        )
+
+        return {"outcome": outcome}   
 
     def __str__(self):
         return f"NormalModel({self.mean, self.variance})"

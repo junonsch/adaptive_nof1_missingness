@@ -15,19 +15,22 @@ import random
 class MissingSimulationRunner:
     history: History
     history_miss: History
-    policy: Policy
-    model: Model
+    policy_full: Policy
+    policy_miss: Policy
+    model_full: Model
     pooling: bool
     pooledHistory: None = None
 
     @staticmethod
-    def from_model_and_policy_with_copy(model: Model, policy: Policy,pooling: bool):
-        policy.number_of_actions = model.number_of_interventions
+    def from_model_and_policy_with_copy(model_full: Model, policy_full: Policy,policy_miss: Policy, pooling: bool):
+        policy_full.number_of_actions = model_full.number_of_interventions
+        policy_miss.number_of_actions = model_full.number_of_interventions
         return MissingSimulationRunner(
             history=History(observations=[]),
             history_miss=History(observations=[]),
-            model=copy.deepcopy(model),
-            policy=copy.deepcopy(policy),
+            model_full=copy.deepcopy(model_full),
+            policy_full =policy_full, #copy.deepcopy(policy_full),
+            policy_miss=policy_miss, #copy.deepcopy(policy_miss),
             pooling=pooling,
         )
 
@@ -38,15 +41,13 @@ class MissingSimulationRunner:
         )
 
     def __str__(self):
-        return f"MissingSimulationRunner[{self.policy},{self.model}]"
+        return f"MissingSimulationRunner[{self.policy_full},{self.model_full}]"
 
     def step(self,missings,model,imputation_method,length):
-        if self.policy.is_stopped:
-            return self
 
-      
+       
         # for complete track:
-        context = model.generate_context(self.history) ## HEREEEEE
+        context = self.model_full.generate_context(self.history) ## HEREEEEE
         context["t"] = length
 
         if context["t"] in missings:
@@ -56,46 +57,74 @@ class MissingSimulationRunner:
         any_missings_before = any([miss < context["t"] for miss in missings])
         
         context["patient_id"] = model.patient_id
+        if (context["patient_id"] == 0) and (context["t"] == 0):
+            print(f"t=0, RNG state miss: {self.policy_miss.internal_policy.rng.bit_generator.state}")
+            print(f"t=0, RNG state full: {self.policy_full.internal_policy.rng.bit_generator.state}")
+        
 
         hist = History([obs for obs in self.history.observations if obs.context["patient_id"]== context["patient_id"]])
-        action = self.policy.choose_action(hist, context)
-        outcome = self.model.observe_outcome(action, context)  
-
+        
+        action = self.policy_full.choose_action(hist, context)
+        outcome = self.model_full.observe_outcome(action, context)  
+        
         # for missing track
-        
-        if self.pooling:
-            history_miss = self.pooledHistory
-        else:
-            if not any_missings_before:
-                history_miss = hist
-            else:
-                history_miss = History([obs for obs in self.history_miss.observations if obs.context["patient_id"]== context["patient_id"]])
-        
-        action_miss = self.policy.choose_action(history_miss, context)
-        if missing:
-            imputer_miss = Imputation(history_miss, context, action_miss, model)
-            outcome_miss = imputer_miss.impute(imputation_method)
-        else:
-            if not any_missings_before:
-                action_miss = action.copy()
-                outcome_miss = outcome.copy()
-            else:
-                outcome_miss = self.model.observe_outcome(action_miss, context) 
-        outcome_miss["imputation_method"] = imputation_method
 
-        
+        if context["t"] == 0:
+            assert not any_missings_before,"There can't be any missings before 0!"
+
+        if not any_missings_before:
+            
+            self.policy_miss = copy.deepcopy(self.policy_full)
+            action_miss = action#self.policy_miss.choose_action(hist, context, divergence_point)
+            if not missing:
+                outcome_miss = outcome
+            else:
+                imputer_miss = Imputation(self.history_miss, self.pooledHistory, context, action_miss, model)
+                outcome_miss = imputer_miss.impute(imputation_method)
+        else:
+            action_miss = self.policy_miss.choose_action(self.history_miss, context)
+            if missing:
+                imputer_miss = Imputation(self.history_miss, self.pooledHistory, context, action_miss, model)
+                outcome_miss = imputer_miss.impute(imputation_method)
+            else:
+                #history_miss_ind = History([obs for obs in self.history_miss.observations if obs.context["patient_id"]== context["patient_id"]])
+               # action_miss = self.policy_miss.choose_action(history_miss_ind, context)
+                outcome_miss = outcome #self.model_full.observe_outcome(action_miss, context)
+        if (context["patient_id"] == 60) and (context["t"] in [3,4,5]):
+         #   print(f"hist miss same as hist ind? {self.history_miss == hist}")
+            print(context['t'],action, action_miss)
+            print(f"{context['t']} properties of policy_miss: {self.policy_miss.internal_policy.inference.posterior_parameters(2)}")
+            print(f"{context['t']} properties of policy_full: {self.policy_full.internal_policy.inference.posterior_parameters(2)}")
+            print(context["t"],outcome, outcome_miss)
+        if not any_missings_before and not missing:
+            assert action == action_miss, f"Mismatch at step {context['t']}: {action} vs {action_miss}"
+            assert outcome == outcome_miss, f"Mismatch at step {context['t']}: {outcome} vs {outcome_miss}"
+       # outcome_miss["imputation_method"] = imputation_method
+
+    
         counterfactual_outcomes_miss = [
-            self.model.observe_outcome(counterfactual_action, context)
-            for counterfactual_action in self.policy.available_actions()
+            self.model_full.observe_outcome(counterfactual_action, context)
+            for counterfactual_action in self.policy_miss.available_actions()
         ]
          
         
             
         counterfactual_outcomes = [
-            self.model.observe_outcome(counterfactual_action, context)
-            for counterfactual_action in self.policy.available_actions()
+            self.model_full.observe_outcome(counterfactual_action, context)
+            for counterfactual_action in self.policy_full.available_actions()
         ]
-
+        if context["t"] > 0:
+            posterior_params_miss = self.policy_miss.internal_policy.inference.posterior_parameters(2)
+            posterior_params_full = self.policy_full.internal_policy.inference.posterior_parameters(2)
+        else:
+            posterior_params_miss = ([self.policy_miss.internal_policy.inference.prior_mean,
+                                     self.policy_miss.internal_policy.inference.prior_mean],
+                                     [self.policy_miss.internal_policy.inference.prior_variance,
+                                     self.policy_miss.internal_policy.inference.prior_variance])
+            posterior_params_full = ([self.policy_full.internal_policy.inference.prior_mean,
+                                     self.policy_full.internal_policy.inference.prior_mean],
+                                     [self.policy_full.internal_policy.inference.prior_variance,
+                                     self.policy_full.internal_policy.inference.prior_variance])
 
         observation = Observation(
             **{
@@ -105,9 +134,10 @@ class MissingSimulationRunner:
                 "outcome": outcome,
                 "imputation_method": imputation_method,
                 "missing": missing,
+                "posterior_params": posterior_params_full,
                 "counterfactual_outcomes": counterfactual_outcomes,
-                "debug_information": self.policy.debug_information[-1],
-                "debug_data": self.policy.debug_data[-1],
+                "debug_information": self.policy_full.debug_information[-1],
+                "debug_data": self.policy_full.debug_data[-1],
                 "t": context["t"],#len(self.history),
             }
         )
@@ -117,11 +147,12 @@ class MissingSimulationRunner:
                 "context": context,
                 "treatment": action_miss,
                 "outcome": outcome_miss,
-                "imputation_method": outcome_miss["imputation_method"],
+                "imputation_method": imputation_method,
                 "missing": missing,
+                "posterior_params": posterior_params_miss,
                 "counterfactual_outcomes": counterfactual_outcomes_miss,
-                "debug_information": self.policy.debug_information[-1],
-                "debug_data": self.policy.debug_data[-1],
+                "debug_information": self.policy_miss.debug_information[-1],
+                "debug_data": self.policy_miss.debug_data[-1],
                 "t": context["t"],#len(self.history),
             }
         )
@@ -138,14 +169,16 @@ class MissingSimulationRunner:
     def get_data(self):
         return MissingSimulationData(
             history=self.history,
-            history_miss=self.history_miss,
-            policy=str(self.policy),
-            model=str(self.model),
-            patient_id=str(self.model.patient_id),
+            history_miss=self.history_miss,#.internal_policy.inference.posterior_parameters(2),
+            policy_full=self.policy_full,#.internal_policy.inference.posterior_parameters(2),
+            policy_miss=self.policy_miss,
+            model_full=str(self.model_full),
+            patient_id=str(self.model_full.patient_id),
             pooled=self.pooling, #self.pooledHistory != None,
             additional_config={
-                **self.model.additional_config,
-                **self.policy.additional_config,
+                **self.model_full.additional_config,
+                **self.policy_full.additional_config,
+                **self.policy_miss.additional_config,
             },
         )
 

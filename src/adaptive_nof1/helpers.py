@@ -102,21 +102,33 @@ def array_almost_equal(one, two, epsilon=0.01):
             return False
     return True
 
+import itertools
 
 def generate_configuration_cross_product(configuration_specification):
-    configuration_dimensions = [
-        list(range(len(item))) for item in configuration_specification.values()
-    ]
-    configuration_indices = list(itertools.product(*configuration_dimensions))
+    """
+    Generates a list of configuration dictionaries from a cross-product of parameter values.
+    
+    Ensures all values in the configuration specification are lists and handles function references correctly.
+    """
+    numpy.random.seed(9001)
+    # Ensure all values are lists
+    for key, value in configuration_specification.items():
+        if not isinstance(value, list):
+            raise TypeError(f"Expected list for '{key}', but got {type(value)} with value: {value}")
+
+    # Extract parameter names and values
     parameter_names = list(configuration_specification.keys())
-    parameter_value_array = list(configuration_specification.values())
-    configurations = [
-        {
-            parameter_names[index]: parameter_value_array[index][value]
-            for index, value in enumerate(configuration_index)
-        }
-        for configuration_index in configuration_indices
-    ]
+    parameter_value_array = [configuration_specification[key] for key in parameter_names]
+
+    # Compute all possible combinations
+    configuration_indices = list(itertools.product(*parameter_value_array))
+
+    # Generate configurations as dictionaries
+    configurations = []
+    for config_values in configuration_indices:
+        config_dict = {parameter_names[i]: config_values[i] for i in range(len(parameter_names))}
+        configurations.append(config_dict)
+
     return configurations
 
 

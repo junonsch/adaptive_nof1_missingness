@@ -2,7 +2,8 @@ import numpy as np
 import random
 
 def insert_missings(length, percentage_missing, mechanism, patient_id):
-    np.random.seed(patient_id)
+   
+    random.seed(patient_id)
     if mechanism == "linear":
         return linear_weighted_sample(length, percentage_missing, patient_id)
     elif mechanism == "exponential":

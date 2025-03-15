@@ -1,6 +1,6 @@
 from adaptive_nof1.policies.policy import Policy
 
-
+import numpy
 class BlockPolicy(Policy):
     def __init__(self, internal_policy: Policy, block_length, **kwargs):
         self.internal_policy = internal_policy
