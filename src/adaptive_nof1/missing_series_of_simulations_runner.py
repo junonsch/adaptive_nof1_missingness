@@ -7,7 +7,7 @@ from adaptive_nof1.missing_simulation_runner import MissingSimulationRunner
 #from adaptive_nof1.simulation_runner import SimulationRunner
 from adaptive_nof1.helpers import all_equal
 from adaptive_nof1.imputation.missingness import insert_missings
-
+from adaptive_nof1.policies import *
 from adaptive_nof1.basic_types import History
 import random
 
@@ -39,9 +39,10 @@ class MissingSeriesOfSimulationsRunner:
     ):
         np.random.seed(9001)  # Reset before creating policies
         
-        # Ensure both policies are initialized from the same random state
+        # Ensure both policies are initialized from the same state
         policy_full_copy = copy.deepcopy(policy_full)
         policy_miss_copy = copy.deepcopy(policy_miss)
+
         self.simulations = [
             MissingSimulationRunner.from_model_and_policy_with_copy(
                 model_from_patient_id(index),
@@ -69,8 +70,11 @@ class MissingSeriesOfSimulationsRunner:
             self.pooling = False
         else:
             self.pooling = True
+
+        # rausziehen
         patients_missing= np.sort(random.sample(range(len(self.simulations)), num_patients_missing))
         positions_missing = {p:insert_missings(length, percentage_missing, missing_mechanism, p) for p in patients_missing}
+        random.seed(9001)
         for i in progressbar(range(length)):
             #print(f"AT TIME POINT {i}")
             for num_sim, simulation in enumerate(self.simulations): # n_patients
