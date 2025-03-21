@@ -23,16 +23,16 @@ from missing_utils import *
 block_length = 1
 length = 28
 number_of_actions = 2
-number_of_patients = 1000
+number_of_patients = 100
 percentage_missing = 0.3
-num_patients_missing = 500
-missing_mechanism = "random"
-imputation_method_names = ["individual", "global"]#, "locf", "ind_tr",  "global_tr", "knn", "cluster", "dr"] # 
+num_patients_missing = 50
+missing_mechanism = "linear"
+imputation_method_names = ["individual", "global", "locf", "ind_tr",  "global_tr", "knn", "cluster", "dr"] # 
 exists = False
 results_path = "./results"
 random.seed(9001)
 
-treatment_means = [1,0]
+treatment_means = [2,2]
 effect_parameters_file_ending = f"{treatment_means[0]}{treatment_means[1]}"
 
 #### SETTINGS
@@ -51,32 +51,45 @@ policy_mapping = {
 inference_model = lambda: NormalKnownVariance(
     prior_mean=0, prior_variance=1, variance=1
 )
-# Set global random seed
-np.random.seed(9001)
 
-# Initialize policies separately with deep copies
-thompson_sampling_policy_1 = BlockPolicy(
+
+np.random.seed(9001)
+random.seed(9001)
+
+
+# Initialize the first policy
+policy_full = BlockPolicy(
     block_length=block_length,
     internal_policy=ThompsonSampling(
         inference_model=inference_model(),
     ),
 )
 
-np.random.seed(9001)  # Reset seed again before second policy
-thompson_sampling_policy_2 = copy.deepcopy(thompson_sampling_policy_1)
+
+np.random.seed(9001)
+random.seed(9001)
+
+# Initialize the second policy
+policy_miss = BlockPolicy(
+    block_length=block_length,
+    internal_policy=ThompsonSampling(
+        inference_model=inference_model(),
+    ),
+)
 
 
 study_designs = {
     "n_patients": [number_of_patients],
     "model_from_patient_id": [generating_scenario_II],
     "policy_full": [
-       thompson_sampling_policy_1
+       policy_full
     ],
     "policy_miss": [
-      thompson_sampling_policy_2
+      policy_miss
     ],
     "pooling": [False],
 }
+
 
 configurations = generate_configuration_cross_product(study_designs)
 
@@ -94,5 +107,5 @@ for imputation_method in imputation_method_names:
 
     df_result = create_df_result(calculated_series)
     df_result["method"] = imputation_method
-  #  pd.to_pickle(df_result, f"{results_path}/df_result_{imputation_method}_{missing_mechanism}_{effect_parameters_file_ending}.pkl")
+    pd.to_pickle(df_result, f"{results_path}/df_result_whatswrong_{imputation_method}_{missing_mechanism}_{effect_parameters_file_ending}.pkl")
     
