@@ -26,7 +26,7 @@ number_of_actions = 2
 number_of_patients = 100
 percentage_missing = 0.3
 num_patients_missing = 50
-missing_mechanism = "linear"
+missing_mechanism = "random"
 imputation_method_names = ["individual", "global", "locf", "ind_tr",  "global_tr", "knn", "cluster", "dr"] # 
 exists = False
 results_path = "./results"
@@ -92,9 +92,11 @@ study_designs = {
 
 
 configurations = generate_configuration_cross_product(study_designs)
-
+    np.random.seed(9001)
+    random.seed(9001)
 for imputation_method in imputation_method_names: 
-
+    np.random.seed(9001)
+    random.seed(9001)
     #### RETURN SIMULATIONS WITH IMPUTATION
     if not exists: 
         print(imputation_method)
