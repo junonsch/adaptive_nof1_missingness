@@ -68,8 +68,9 @@ class MissingSimulationRunner:
             assert not any_missings_before,"There can't be any missings before 0!"
 
         if not any_missings_before:
-            
+            np.random.seed(9001)  # Reset before creating policies
             self.policy_miss = copy.deepcopy(self.policy_full)
+            np.random.seed(9001)  # Reset before creating policies
             action_miss = action#self.policy_miss.choose_action(hist, context, divergence_point)
             if not missing:
                 outcome_miss = outcome

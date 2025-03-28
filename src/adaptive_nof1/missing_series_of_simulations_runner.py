@@ -41,7 +41,9 @@ class MissingSeriesOfSimulationsRunner:
         
         # Ensure both policies are initialized from the same state
         policy_full_copy = copy.deepcopy(policy_full)
+        np.random.seed(9001)  # Reset before creating policies
         policy_miss_copy = copy.deepcopy(policy_miss)
+        np.random.seed(9001)  # Reset before creating policies
 
         self.simulations = [
             MissingSimulationRunner.from_model_and_policy_with_copy(
@@ -52,6 +54,7 @@ class MissingSeriesOfSimulationsRunner:
             )
             for index in range(n_patients)
         ]
+        np.random.seed(9001)
         assert all_equal(
             [str(s.policy_full) for s in self.simulations]
         ), "Not all policies are the same. Usually, you need to set __str__() somewhere"
@@ -73,6 +76,7 @@ class MissingSeriesOfSimulationsRunner:
 
         # rausziehen
         patients_missing= np.sort(random.sample(range(len(self.simulations)), num_patients_missing))
+        patients_missing = [int(p) for p in patients_missing]
         positions_missing = {p:insert_missings(length, percentage_missing, missing_mechanism, p) for p in patients_missing}
         random.seed(9001)
         for i in progressbar(range(length)):
