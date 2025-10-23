@@ -83,7 +83,6 @@ if has_rpy2:
             with (ro.default_converter + pandas2ri.converter).context():
                 result = self.model_function(df)
             self.probabilities = result[["firstbetter", "secondbetter"]].values[0]
-            print(self.probabilities)
 
         def debug_data(self):
             return {"probabilities": self.probabilities}

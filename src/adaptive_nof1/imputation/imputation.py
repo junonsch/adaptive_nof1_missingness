@@ -39,12 +39,12 @@ class Imputation:
             outcome_miss = {"outcome": self.cluster_imputation()}
         elif imputation_method == "dr":
             outcome_miss = {"outcome": self.DR_imputation()}
+        elif imputation_method == "amelia":
+            # not implemented
+            outcome_miss = {"outcome": self.amelia_imputation()}
         elif imputation_method == "all":
             print("Not implemented yet.")
             pass
-            # for method in ["individual_mean", "individual_treatment_mean", "global_mean", "global_treatment_mean", "knn"]:#, "cluster"]:
-            #     outcomes_miss.append({"outcome":self.impute(method),
-            #                           "imputation_method":imputation_method})
         return outcome_miss
             
     def locf(self):
@@ -243,5 +243,63 @@ class Imputation:
                 pass
         return fill_value
 
+    def amelia_imputation(self):
+        # iin progress
+
+        import rpy2.robjects.packages as rpackages
+        from rpy2.robjects.vectors import StrVector
+        import rpy2.robjects as ro
+        from rpy2.robjects.packages import importr
+        from rpy2.robjects import pandas2ri
+        from rpy2.robjects.conversion import localconverter
+        # import R's utils package
+        utils = rpackages.importr('utils')
+
+        # R package names
+        packnames = [('Amelia')]
+
+        # Selectively install what needs to be installed.
+        names_to_install = [x for x in packnames if not rpackages.isinstalled(x)]
+        if len(names_to_install) > 0:
+            utils.install_packages(StrVector(names_to_install))
+
+        Amelia = importr('Amelia')
+
+        dfs = []
+        for obs in self.pooled_history.observations:
+            context= obs.context
+            treatment= obs.treatment
+            outcome= obs.outcome
+            missing = obs.missing
+            imputation_method = obs.imputation_method
+            combined = {**context, **treatment, **outcome, 'missing': missing, 'imputation_method': imputation_method}
+            dfs.append(combined)
+            # Create a one-row DataFrame
+           # df = pd.DataFrame([combined])
+           # dfs.append(df)
+        dfs[-1].update({"t":self.context["t"],
+                        "patient_id":self.context["patient_id"],
+                        "treatment":self.action["treatment"],
+                        "missing":True})
+        complete_df = pd.DataFrame(dfs)
+
+        with localconverter(ro.default_converter + pandas2ri.converter):
+            dataframe = ro.conversion.py2rpy(complete_df.reset_index(drop=True))
+       
+        imputed = Amelia.amelia(x = dataframe,
+                    m = 1,
+                    p2s = 1,
+                    idvars = StrVector(['patient_id']), # if Pandas df with an index then use 'row.names'
+                    #noms = StrVector(["coly"]),
+                    ords = "colz",
+                    ts = "t",
+                    cs = None,
+                    empri = 0.05 * len(dataframe),
+                    polytime = 3,
+                    splinetime = 9,
+                    intercs = True,
+                    bounds = np.array([[10, 0, 1000], [11, 0, 1000], [12, 0, 1000]]), # the specific dimensions of the dataframe
+                    parallel = 'multicore',
+                    ncpus = 8) # cpus on computer
 
 

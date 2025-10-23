@@ -70,7 +70,7 @@ class NormalModel(Model):
         return torch.distributions.MultivariateNormal(torch.tensor(self.mean), cov)
 
     def generate_context(self, history):
-        return {}
+        return {"c": abs(self.rng.normal(0, 0.2))}
 
     @property
     def additional_config(self):

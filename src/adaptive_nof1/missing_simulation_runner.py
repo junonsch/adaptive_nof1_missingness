@@ -86,11 +86,7 @@ class MissingSimulationRunner:
             else:
                
                 outcome_miss = outcome #self.model_full.observe_outcome(action_miss, context)
-        if (context["patient_id"] == 60) and (context["t"] in [3,4,5]):
-            print(context['t'],action, action_miss)
-            print(f"{context['t']} properties of policy_miss: {self.policy_miss.internal_policy.inference.posterior_parameters(2)}")
-            print(f"{context['t']} properties of policy_full: {self.policy_full.internal_policy.inference.posterior_parameters(2)}")
-            print(context["t"],outcome, outcome_miss)
+       
         if not any_missings_before and not missing:
             assert action == action_miss, f"Mismatch at step {context['t']}: {action} vs {action_miss}"
             assert outcome == outcome_miss, f"Mismatch at step {context['t']}: {outcome} vs {outcome_miss}"

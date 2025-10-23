@@ -21,13 +21,13 @@ from missing_utils import *
 
 # Initial parameters 
 block_length = 1
-length = 28
+trial_length = 28
 number_of_actions = 2
 number_of_patients = 100
 percentage_missing = 0.3
 num_patients_missing = 50
 missing_mechanism = "random"
-imputation_method_names = ["individual", "global", "locf", "ind_tr",  "global_tr", "knn", "cluster", "dr"] # 
+imputation_method_names = ["individual", "global", "locf", "ind_tr",  "global_tr", "knn", "cluster", "dr"] 
 exists = False
 results_path = "./results"
 random.seed(9001)
@@ -36,7 +36,7 @@ treatment_means = [2,2]
 effect_parameters_file_ending = f"{treatment_means[0]}{treatment_means[1]}"
 
 #### SETTINGS
-generating_scenario_II = lambda patient_id: NormalModel(
+generating_scenario = lambda patient_id: NormalModel(
     patient_id, mean=literal_eval(repr(treatment_means)), variance=[1, 1]
 )
 
@@ -80,7 +80,7 @@ policy_miss = BlockPolicy(
 
 study_designs = {
     "n_patients": [number_of_patients],
-    "model_from_patient_id": [generating_scenario_II],
+    "model_from_patient_id": [generating_scenario],
     "policy_full": [
        policy_full
     ],
@@ -92,16 +92,14 @@ study_designs = {
 
 
 configurations = generate_configuration_cross_product(study_designs)
-    np.random.seed(9001)
-    random.seed(9001)
+np.random.seed(9001)
+random.seed(9001)
 for imputation_method in imputation_method_names: 
     np.random.seed(9001)
     random.seed(9001)
-    #### RETURN SIMULATIONS WITH IMPUTATION
     if not exists: 
-        print(imputation_method)
         calculated_series  = simulate_missing_configurations(
-        configurations, length, percentage_missing, num_patients_missing, missing_mechanism,imputation_method)
+        configurations, trial_length, percentage_missing, num_patients_missing, missing_mechanism,imputation_method)
        # pd.to_pickle(calculated_series, f"{results_path}/calculated_series_{imputation_method}_{missing_mechanism}_{effect_parameters_file_ending}.pkl")
     else:
         calculated_series = pd.read_pickle(f"{results_path}/calculated_series_{imputation_method}_{missing_mechanism}_{effect_parameters_file_ending}.pkl")
@@ -109,5 +107,5 @@ for imputation_method in imputation_method_names:
 
     df_result = create_df_result(calculated_series)
     df_result["method"] = imputation_method
-    pd.to_pickle(df_result, f"{results_path}/df_result_whatswrong_{imputation_method}_{missing_mechanism}_{effect_parameters_file_ending}.pkl")
+    pd.to_pickle(df_result, f"{results_path}/df_result_{imputation_method}_{missing_mechanism}_{effect_parameters_file_ending}.pkl")
     

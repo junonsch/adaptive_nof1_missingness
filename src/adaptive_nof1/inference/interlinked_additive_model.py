@@ -104,10 +104,6 @@ class InterlinkedAdditiveModel(BayesianModel):
                     )
                     mu += coefficient_summand
 
-                # print(f"intercept[treatment_indices[:, treatment_number]]{intercept[treatment_indices[:, treatment_number]].eval()}")
-                # print(f"(coefficient_values[:, coefficient_indices] * slopes.T)[:, treatment_indices[:, treatment_number]]{(coefficient_values[:, coefficient_indices] * slopes.T)[:, treatment_indices[:, treatment_number]][:, 0].eval()}")
-                # print(f"mu:{mu.eval()}")
-
             outcome = pymc.Normal(
                 "outcome",
                 mu=mu,

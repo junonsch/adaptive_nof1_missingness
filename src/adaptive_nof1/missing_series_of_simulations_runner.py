@@ -6,7 +6,7 @@ from adaptive_nof1.models.model import Model
 from adaptive_nof1.missing_simulation_runner import MissingSimulationRunner
 #from adaptive_nof1.simulation_runner import SimulationRunner
 from adaptive_nof1.helpers import all_equal
-from adaptive_nof1.imputation.missingness import insert_missings
+from adaptive_nof1.imputation.missingness import set_missingness_positions, insert_missings
 from adaptive_nof1.policies import *
 from adaptive_nof1.basic_types import History
 import random
@@ -23,10 +23,11 @@ import hvplot.pandas  # noqa
 import matplotlib.pyplot as plt
 import copy
 
+INDIVIDUAL_IMPUTATION_METHODS = ["individual", "ind_tr", "locf"]
+
 @dataclass
 class MissingSeriesOfSimulationsRunner:
     simulations: List[MissingSimulationRunner]
-    #pooling: bool = False
 
     def __init__(
         self,
@@ -66,23 +67,17 @@ class MissingSeriesOfSimulationsRunner:
         self.model_from_patient_id = model_from_patient_id
         self.pooling = pooling
 
-    def simulate(self, length, percentage_missing, num_patients_missing,missing_mechanism,imputation_method) -> SeriesOfMissingSimulationsData:
+    def simulate(self, trial_length, percentage_missing, num_patients_missing,missing_mechanism,imputation_method) -> SeriesOfMissingSimulationsData:
         random.seed(9001)
-      #  np.random.seed(9001)
-        if imputation_method in ["individual", "ind_tr", "locf"]:
+        if imputation_method in INDIVIDUAL_IMPUTATION_METHODS:
             self.pooling = False
         else:
             self.pooling = True
 
-        # rausziehen
-        patients_missing= np.sort(random.sample(range(len(self.simulations)), num_patients_missing))
-        patients_missing = [int(p) for p in patients_missing]
-        positions_missing = {p:insert_missings(length, percentage_missing, missing_mechanism, p) for p in patients_missing}
+        patients_missing, positions_missing = set_missingness_positions(self.simulations, num_patients_missing, trial_length, percentage_missing, missing_mechanism)
         random.seed(9001)
-        for i in progressbar(range(length)):
-            #print(f"AT TIME POINT {i}")
-            for num_sim, simulation in enumerate(self.simulations): # n_patients
-              #  print(f"This patient {num_sim}:")
+        for i in progressbar(range(trial_length)):
+            for num_sim, simulation in enumerate(self.simulations): 
                 model = self.model_from_patient_id(num_sim)
                 if num_sim in patients_missing:
                     missings = positions_missing[num_sim]
@@ -119,11 +114,11 @@ class MissingSeriesOfSimulationsRunner:
         }
 
 
-def simulate_missing_configurations(configurations, length, percentage_missing, num_patients_missing,missing_mechanism,imputation_method):
+def simulate_missing_configurations(configurations, trial_length, percentage_missing, num_patients_missing,missing_mechanism,imputation_method):
     calculated_series = []
     np.random.seed(9001)  
     for configuration in configurations:
-        result = MissingSeriesOfSimulationsRunner(**configuration).simulate(length, percentage_missing,num_patients_missing,missing_mechanism,imputation_method)
+        result = MissingSeriesOfSimulationsRunner(**configuration).simulate(trial_length, percentage_missing,num_patients_missing,missing_mechanism,imputation_method)
 
         calculated_series.append(
             {"configuration": result.configuration, "result": result}

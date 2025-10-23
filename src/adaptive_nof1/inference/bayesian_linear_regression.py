@@ -106,13 +106,10 @@ class BayesianLinearRegressionModel:
             .to_numpy()
             .astype(float)
         )
-        # print(x)
-        # print(x.shape)
         self.model = NIGLinearRegression(
             mu=self.mean, v=self.v, a=self.alpha, b=self.beta
         )
         self.model.fit(x, self.df[self.outcome_name])
-        # print(model.mu)
 
         sample_size = 1000
         identity_matrix = numpy.eye(number_of_treatments)
@@ -125,7 +122,6 @@ class BayesianLinearRegressionModel:
             ]
         )
         max_indices = numpy.argmax(samples, axis=0)
-        # print(samples)
         bin_counts = numpy.bincount(max_indices, minlength=number_of_treatments)
         return bin_counts / numpy.sum(bin_counts)
 

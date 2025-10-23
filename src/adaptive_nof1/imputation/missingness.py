@@ -15,6 +15,13 @@ def insert_missings(length, percentage_missing, mechanism, patient_id):
         pass
 
 
+def set_missingness_positions(simulations, num_patients_missing, trial_length, percentage_missing, missing_mechanism):
+    patients_missing= np.sort(random.sample(range(len(simulations)), num_patients_missing))
+    patients_missing = [int(p) for p in patients_missing]
+    positions_missing = {p:insert_missings(trial_length, percentage_missing, missing_mechanism, p) for p in patients_missing}
+    
+    return patients_missing, positions_missing
+
 def linear_weighted_sample(length, percentage_missing, patient_id):
     n_samples = max(1, round(percentage_missing * length))  # Determine sample size
     numbers = np.arange(1, length+1)
